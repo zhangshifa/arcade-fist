@@ -175,7 +175,7 @@ async function main() {
     console.warn('  ! 元信息更新失败（不影响代码）：' + e.message);
   }
 
-  console.log(`\n✅ 推送完成：${API.replace('api.', '')}${OWNER}/${REPO}`);
+  console.log(`\n✅ 推送完成：https://github.com/${OWNER}/${REPO}`);
   console.log(`   文件数：${pushedCount}`);
   console.log(`   提交：${commit.html_url}`);
 }
