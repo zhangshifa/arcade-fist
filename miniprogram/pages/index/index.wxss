@@ -1,0 +1,16 @@
+.page {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 50% 35%, #1a1c2a 0%, #07080d 70%);
+  overflow: hidden;
+}
+
+.stage {
+  display: block;
+  background: #0b0d14;
+  box-shadow: 0 0 0 2rpx #171b28, 0 12rpx 40rpx rgba(0, 0, 0, 0.8);
+  border-radius: 4rpx;
+}

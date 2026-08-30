@@ -1,0 +1,21 @@
+# 依赖
+node_modules/
+
+# 系统/编辑器
+.DS_Store
+Thumbs.db
+*.log
+*.swp
+
+# 工作区元数据（不入库，含本地缓存）
+.workbuddy/
+
+# 本地密钥/临时脚本（绝不入库）
+*.local.js
+.env
+.env.*
+scripts/.github-token*
+
+# 微信小程序构建产物
+miniprogram_dist/
+dist/

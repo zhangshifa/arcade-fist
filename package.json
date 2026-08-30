@@ -1,0 +1,21 @@
+{
+  "name": "arcade-fist",
+  "version": "1.0.0",
+  "description": "拳魂 ARCADE FIST —— 原创像素街机格斗，点开即玩，广告变现。微信小程序 + H5 双端，调试模式开发。",
+  "private": true,
+  "scripts": {
+    "sync": "node scripts/sync.js",
+    "test": "node scripts/smoke-test.js",
+    "push": "node scripts/github-push-api.mjs"
+  },
+  "keywords": [
+    "arcade",
+    "fighting-game",
+    "pixel-art",
+    "miniprogram",
+    "h5",
+    "ad-monetization"
+  ],
+  "license": "MIT",
+  "author": "zhangshafa"
+}

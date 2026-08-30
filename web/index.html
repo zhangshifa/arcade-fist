@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#07080d">
+<meta name="description" content="拳魂 ARCADE FIST —— 原创像素街机格斗，点开即玩，无需下载安装。">
+<title>拳魂 ARCADE FIST · 点开即玩</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="wrap">
+  <div id="cab">
+    <canvas id="stage" width="480" height="270"></canvas>
+  </div>
+</div>
+<p id="hint">键盘：←→ 移动 · ↑ 跳 · ↓ 蹲 · J/K 拳 · U/I 脚 · L 防御 · 空格 必杀　|　移动端：屏幕虚拟按键</p>
+
+<!-- 核心逻辑（由 scripts/sync.js 从 core/ 同步，勿手改） -->
+<script src="js/core/constants.js"></script>
+<script src="js/core/sprites.js"></script>
+<script src="js/core/storage.js"></script>
+<script src="js/core/audio.js"></script>
+<script src="js/core/ads.js"></script>
+<script src="js/core/fighter.js"></script>
+<script src="js/core/ai.js"></script>
+<script src="js/core/game.js"></script>
+<!-- 平台入口 -->
+<script src="js/main.js"></script>
+</body>
+</html>

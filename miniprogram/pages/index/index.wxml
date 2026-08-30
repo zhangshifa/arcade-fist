@@ -1,0 +1,13 @@
+<view class="page">
+  <canvas
+    type="2d"
+    id="stage"
+    class="stage"
+    style="width: {{cw}}px; height: {{ch}}px;"
+    disable-scroll="{{true}}"
+    bindtouchstart="onTouchStart"
+    bindtouchmove="onTouchMove"
+    bindtouchend="onTouchEnd"
+    bindtouchcancel="onTouchCancel"
+  ></canvas>
+</view>
