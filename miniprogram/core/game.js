@@ -455,6 +455,27 @@
         type: 'dash', fighter: fighter, opp: opp, dmg: dmg,
         t: 0, hit: false, startX: fighter.x, targetX: fighter.x + fighter.facing * 96
       });
+    } else if (sp.type === 'uppercut') {
+      /* 升龙：对空无敌起手，身前升起一道能量柱，多段判定 */
+      this.effects.push({
+        type: 'uppercut', x: fighter.x + fighter.facing * 16, y: fighter.y - 40,
+        dir: fighter.facing, fighter: fighter, opp: opp, dmg: dmg,
+        t: 0, hit: false, hitsLeft: 3
+      });
+      for (var u = 0; u < 14; u++) {
+        this.particles.push({
+          x: fighter.x + fighter.facing * 12, y: fighter.y - 30 - Math.random() * 40,
+          vx: fighter.facing * (1 + Math.random()), vy: -Math.random() * 3,
+          life: 24, color: fighter.ch.palette.accent, size: 2 + Math.random() * 2, g: 0.1
+        });
+      }
+    } else if (sp.type === 'beam') {
+      /* 能量波：身前喷出真空波，向前扩张、多段判定（牵制型必杀） */
+      this.effects.push({
+        type: 'beam', x: fighter.x + fighter.facing * 18, y: fighter.y - 56,
+        dir: fighter.facing, fighter: fighter, opp: opp, dmg: dmg * 0.6,
+        t: 0, hit: false, hitsLeft: 5, reach: 30
+      });
     }
   };
 
@@ -562,6 +583,55 @@
           }
         }
         if (e.t > 16) this.effects.splice(i, 1);
+      }
+
+      else if (e.type === 'uppercut') {
+        e.t++;
+        e.y -= 3.0; // 能量柱上升
+        if (e.t % 6 === 1 && e.hitsLeft > 0 && e.opp.state !== 'ko' && !this.roundOver) {
+          var ub = { x: e.x - 15, y: e.y - 64, w: 30, h: 70 };
+          if (overlap(ub, e.opp.hurtBox())) {
+            var fmu = { dmg: e.dmg, hitstun: 26, blockstun: 14, push: 3, name: '昇龙', low: false, startup: 0, active: 1, reach: 0 };
+            e.opp.applyHit(this, fmu, e.fighter);
+            e.hitsLeft--;
+            e.hit = true;
+            this.hitstop = 6;
+            this.shake = 10;
+            this.burst(e.opp.x, e.opp.y - 58, 12, e.fighter.ch.palette.accent, 1.3);
+          }
+        }
+        if (e.t % 2 === 0) {
+          this.particles.push({
+            x: e.x + (Math.random() - 0.5) * 12, y: e.y - Math.random() * 56,
+            vx: e.dir * 0.6, vy: -1.2, life: 18,
+            color: e.fighter.ch.palette.accent, size: 2 + Math.random() * 2, g: 0.05
+          });
+        }
+        if (e.t > 30) this.effects.splice(i, 1);
+
+      } else if (e.type === 'beam') {
+        e.t++;
+        e.reach += 2.4; // 真空波向前扩张
+        if (e.t % 5 === 1 && e.hitsLeft > 0 && e.opp.state !== 'ko' && !this.roundOver) {
+          var bb = { x: e.dir > 0 ? e.x : e.x - e.reach, y: e.y - 26, w: e.reach, h: 52 };
+          if (overlap(bb, e.opp.hurtBox())) {
+            var fmb = { dmg: e.dmg, hitstun: 18, blockstun: 12, push: 2.4, name: '真空波', low: false, startup: 0, active: 1, reach: 0 };
+            e.opp.applyHit(this, fmb, e.fighter);
+            e.hitsLeft--;
+            e.hit = true;
+            this.hitstop = 5;
+            this.shake = 8;
+            this.burst(e.opp.x, e.opp.y - 50, 8, e.fighter.ch.palette.accent, 1.1);
+          }
+        }
+        if (e.t % 3 === 0) {
+          this.particles.push({
+            x: e.x + e.dir * e.reach * Math.random(), y: e.y - 26 + (Math.random() - 0.5) * 40,
+            vx: e.dir * (1 + Math.random()), vy: 0, life: 14,
+            color: e.fighter.ch.palette.trail, size: 8, g: 0, ghost: true
+          });
+        }
+        if (e.t > 34 || e.hitsLeft <= 0) this.effects.splice(i, 1);
       }
     }
   };

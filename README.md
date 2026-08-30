@@ -13,9 +13,9 @@
 - **点开即玩**：H5 版双击 `web/index.html` 即可运行，无需构建、无 ES module CORS 问题；小程序导入 `miniprogram/` 目录即可在开发者工具中运行。
 - **3v3 组队淘汰赛（拳皇式赛制）**：玩家选 3 人组建战队，依次上场，KO 后换下一名，全队阵亡判负；胜者保留残血进入下一场。HUD 实时显示双方 3 名队员状态（当前 / 待命 / 阵亡）。
 - **4 键格斗手感**：A/B 拳、C/D 脚、↓防、必杀（满气槽触发）。触屏虚拟按键 + 键盘双输入。
-- **四种必杀技**：远程波动（projectile）、突进连踢（rush）、震地波（shock）、暗影突进（dash）。
-- **6 名原创角色 · 2 支战队**：烈炎队（莱恩 / 薇拉 / 戈罗）、疾影队（库洛 / 希拉 / 雪），各有风格与数值定位（详见 `docs/CHARACTERS.md`）。
-- **数据驱动「换皮」架构**：角色 / 招式 / 美术全是纯数据（`core/constants.js`），套用你自己的 IP 角色只改数据不动引擎（详见 `docs/CHARACTER_SCHEMA.md`）。
+- **六必杀技**：远程波动（projectile）、突进连踢（rush）、震地波（shock）、暗影突进（dash）、对空升龙（uppercut）、能量波（beam）——6 名角色各一专属必杀。
+- **6 名原创角色 · 2 支战队**：炎武队（烈云 / 薇拉 / 戈罗）、幻影队（库洛 / 希拉 / 雪），各有风格与数值定位（详见 `docs/CHARACTER_DESIGN.md`）。
+- **数据驱动「换皮」架构**：角色 / 招式 / 美术全是纯数据（`core/constants.js`），套用你自己的 IP 角色只改数据不动引擎；角色还可带自定义招式表（`moves`）做差异化手感（详见 `docs/CHARACTER_SCHEMA.md`）。
 - **4 档 AI 难度**：新手 / 普通 / 困难 / 地狱。
 - **完整对战流程**：组建战队 → 入场 → 第 N 战 → KO → 换人 → 全灭结算 → 复活 / 双倍奖励。
 - **广告变现闭环**：看广告解锁角色、看广告复活、看广告翻倍金币、回合结束插屏（频次控制）。
@@ -47,9 +47,11 @@ arcade-fist/
 │  └─ core/*
 ├─ scripts/
 │  ├─ sync.js            # 把 core/ 同步到 web 与 miniprogram
-│  ├─ smoke-test.js      # 无头冒烟测试（51 项）
+│  ├─ smoke-test.js      # 无头冒烟测试（60 项）
 │  └─ github-push-api.mjs# 通过 api.github.com 推送（沙箱外运行）
 ├─ docs/
+│  ├─ CHARACTER_DESIGN.md # 角色设计稿（6 人 2 队）
+│  ├─ CHARACTER_SCHEMA.md # 角色换皮数据格式（加/换角色指南）
 │  └─ AD_CONFIG.md       # 广告位配置与上线指南
 ├─ requirements.md        # 需求原文存档
 └─ README.md

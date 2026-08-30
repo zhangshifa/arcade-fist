@@ -68,8 +68,12 @@
    *   skin 皮肤 / hair 头发 / top 上衣 / bottom 下装 / belt 腰带
    *   shoe 鞋 / glove 手套 / accent 主题色（特效与描边）
    */
-  /* ============ 角色阵容（原创 · 两套战队 · 3v3 淘汰赛） ============
-   * 字段说明见 docs/CHARACTER_SCHEMA.md。换角色 = 只改这里，不动引擎。
+  /* ============ 角色阵容（原创 · 拳皇风致敬 · 两套战队 · 3v3 淘汰赛） ============
+   * 全为原创角色/招式/美术，不使用任何第三方版权素材。
+   * 字段说明见 docs/CHARACTER_SCHEMA.md。换角色 / 换皮 = 只改这里，不动引擎。
+   * 必杀 type 枚举：projectile 飞行弹 / rush 突进连击 / shock 震地 /
+   *                 dash 突进斩 / uppercut 升龙(对空) / beam 能量波(牵制)。
+   * 角色可带可选 `moves` 字段覆盖全局 AK.MOVES，实现差异化手感。
    */
   AK.CHARACTERS = [
     /* ---- 烈炎队 team-blaze ---- */
@@ -129,6 +133,11 @@
       locked: true,
       build: 'heavy',
       stats: { hp: 1.25, atk: 1.28, spd: 0.82, reach: 1.05 },
+      // 自定义招式表（套壳示范）：重装角色出手慢但每下更疼
+      moves: {
+        heavyPunch: { key: 'B', name: '岩拳', startup: 11, active: 5, recovery: 18, dmg: 14, hitstun: 24, blockstun: 14, push: 4.0, reach: 36, hi: true },
+        heavyKick:  { key: 'D', name: '巨踢', startup: 13, active: 6, recovery: 22, dmg: 16, hitstun: 28, blockstun: 16, push: 5.0, reach: 46, hi: false }
+      },
       special: {
         name: '崩岩震地击',
         type: 'shock',
@@ -170,16 +179,20 @@
       style: '风影流',
       archetype: '速度',
       team: 'team-shadow',
-      desc: '风一般灵敏的游斗者，位移灵活，适合消耗连段。',
+      desc: '风一般灵敏的游斗者，位移灵活，专属升龙「风影升龙」专治跳入。',
       locked: false,
       build: 'slim',
       stats: { hp: 0.88, atk: 0.9, spd: 1.25, reach: 0.95 },
+      // 自定义招式表（套壳示范）：出手比全局更快，凸显速度型手感
+      moves: {
+        lightPunch: { key: 'A', name: '迅拳', startup: 3, active: 3, recovery: 6, dmg: 5, hitstun: 12, blockstun: 8, push: 2.0, reach: 30, hi: true },
+        lightKick:  { key: 'C', name: '疾脚', startup: 4, active: 3, recovery: 8, dmg: 6, hitstun: 13, blockstun: 8, push: 2.4, reach: 36, hi: false }
+      },
       special: {
-        name: '瞬影三连踢',
-        type: 'rush',
+        name: '风影升龙',
+        type: 'uppercut',
         cost: 100,
-        damage: 9,
-        hits: 3
+        damage: 16
       },
       palette: {
         skin: '#f6c9a8', hair: '#dfe8f2', top: '#f4f6fa', bottom: '#2f5fa8',
@@ -198,11 +211,10 @@
       build: 'normal',
       stats: { hp: 0.96, atk: 0.98, spd: 1.0, reach: 1.12 },
       special: {
-        name: '冰华散弹',
-        type: 'projectile',
+        name: '冰华真空波',
+        type: 'beam',
         cost: 100,
-        damage: 16,
-        speed: 3.6
+        damage: 13
       },
       palette: {
         skin: '#eef0f6', hair: '#6fc6e8', top: '#bfe6f2', bottom: '#2f6f8a',

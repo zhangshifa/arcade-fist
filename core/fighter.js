@@ -88,10 +88,15 @@
            this.state === 'ko' || this.state === 'special' || this.state === 'sweep';
   };
 
+  /* 取招式帧数据：优先用角色自定义招式表（套壳换皮用），否则用全局 AK.MOVES */
+  Fighter.prototype.moveData = function (name) {
+    return (this.ch.moves && this.ch.moves[name]) ? this.ch.moves[name] : AK.MOVES[name];
+  };
+
   /* 发起普通招式 */
   Fighter.prototype.tryMove = function (name) {
     if (this.state === 'ko') return false;
-    var m = AK.MOVES[name];
+    var m = this.moveData(name);
     if (!m) return false;
 
     // 取消：命中后的连段取消窗口（命中后 recovery 内可接下一招）
@@ -112,7 +117,7 @@
       this.state = 'attack';
     }
 
-    this.move = AK.MOVES[name];
+    this.move = this.moveData(name);
     this.moveFrame = 0;
     this.moveHit = false;
     this.st = 0;
