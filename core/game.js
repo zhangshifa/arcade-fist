@@ -48,22 +48,29 @@
     this.reviveUsed = false;
 
     this.sel = {
-      p1: 0,
+      team: ['ryan', 'vela', 'shira'], // 玩家组建的战队（3 人）
       difficulty: 1,
       stage: 0,
-      page: 'char'
+      lockTarget: -1             // 选人页选中但未解锁的角色下标
     };
+
+    this.teamMode = true;
+    this.p1Team = [];
+    this.p2Team = [];
+    this.teamPos = [0, 0];
+    this.koFlags = [[false, false, false], [false, false, false]];
+    this.matchDiff = 'normal';
 
     this.save = AK.storage.getJSON('ak_save', null) || {
       coins: AK.ECON.startCoins,
-      unlocked: ['ryan', 'shira'],
+      unlocked: ['ryan', 'vela', 'shira'],
       wins: 0,
       losses: 0,
       streak: 0,
       bestStreak: 0,
       muted: false
     };
-    if (!this.save.unlocked) this.save.unlocked = ['ryan', 'shira'];
+    if (!this.save.unlocked) this.save.unlocked = ['ryan', 'vela', 'shira'];
 
     this.toast = null;
     this.pendingAd = null;
@@ -102,36 +109,77 @@
     AK.audio.play('ui');
   };
 
-  /* ================= 对局流程 ================= */
-  Game.prototype.startMatch = function (charId, diffId) {
-    this.p1Char = AK.characterById(charId);
-    var pool = AK.CHARACTERS.filter(function (c) { return c.id !== charId; });
-    this.p2Char = pool[Math.floor(Math.random() * pool.length)];
+  /* ================= 对局流程（3v3 组队淘汰赛） ================= */
+  Game.prototype.randomTeam = function () {
+    var t = AK.TEAMS[Math.floor(Math.random() * AK.TEAMS.length)];
+    return t.members.slice();
+  };
 
-    this.ai = new AK.AI(diffId);
-    this.f1 = new AK.Fighter(this.p1Char, 150, 1, false);
-    this.f2 = new AK.Fighter(this.p2Char, 330, -1, true);
+  Game.prototype.randomOthers = function (id, n) {
+    var pool = AK.CHARACTERS.filter(function (c) { return c.id !== id; });
+    var out = [];
+    while (n-- > 0 && pool.length) {
+      out.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0].id);
+    }
+    return out;
+  };
+
+  /**
+   * 开始一场 3v3。
+   * @param p1 玩家战队：角色 id 数组，或单个 id（自动补 2 人凑成 3v3）
+   * @param diffId 难度
+   * @param p2 电脑战队：角色 id 数组（默认随机一队）
+   */
+  Game.prototype.startMatch = function (p1, diffId, p2) {
+    var p1Team = Array.isArray(p1) ? p1.slice(0, 3) : [p1].concat(this.randomOthers(p1, 2));
+    while (p1Team.length < 3) p1Team.push(this.randomOthers(p1Team[p1Team.length - 1] || 'ryan', 1)[0]);
+    var p2Team = p2 ? (Array.isArray(p2) ? p2.slice(0, 3) : [p2].concat(this.randomOthers(p2, 2)))
+                    : this.randomTeam();
+
+    this.p1Team = p1Team;
+    this.p2Team = p2Team;
+    this.teamPos = [0, 0];
+    this.koFlags = [p1Team.map(function () { return false; }), p2Team.map(function () { return false; })];
+    this.matchDiff = diffId || 'normal';
+    this.ai = new AK.AI(this.matchDiff);
+    this.f1 = new AK.Fighter(AK.characterById(p1Team[0]), 150, 1, false);
+    this.f2 = new AK.Fighter(AK.characterById(p2Team[0]), 330, -1, true);
     this.wins = [0, 0];
     this.reviveUsed = false;
     this.matchOver = false;
     this.roundNo = 0;
     this.perfect = [true, true];
-    this.startRound(true);
+    this.beginRound(true);
     this.setScene('battle');
   };
 
-  Game.prototype.startRound = function (first) {
+  /** 开打前生成某侧的当前队员 */
+  Game.prototype.spawnMember = function (side) {
+    var team = side === 0 ? this.p1Team : this.p2Team;
+    var id = team[this.teamPos[side]];
+    var ch = AK.characterById(id);
+    var f = new AK.Fighter(ch, side === 0 ? 150 : 330, side === 0 ? 1 : -1, side === 0 ? false : true);
+    return f;
+  };
+
+  /**
+   * 开始一场对决（1v1）。
+   * @param first true=整场比赛第一场（双方满血满气）；false=换人后续场（胜者保留残血，败者新满血）
+   */
+  Game.prototype.beginRound = function (first) {
     this.roundNo++;
     this.roundCount++;
     AK.__roundCount = this.roundCount;
-    this.f1.hp = this.f1.maxHp;
-    this.f2.hp = this.f2.maxHp;
+    if (first) {
+      this.f1.hp = this.f1.maxHp;
+      this.f2.hp = this.f2.maxHp;
+      this.f1.power = 0;
+      this.f2.power = 0;
+    }
     this.f1.x = 150; this.f1.y = AK.GROUND_Y; this.f1.vx = 0; this.f1.vy = 0;
     this.f2.x = 330; this.f2.y = AK.GROUND_Y; this.f2.vx = 0; this.f2.vy = 0;
     this.f1.facing = 1; this.f2.facing = -1;
     this.f1.setState('idle'); this.f2.setState('idle');
-    this.f1.power = first ? 0 : Math.round(this.f1.power * 0.5);
-    this.f2.power = first ? 0 : Math.round(this.f2.power * 0.5);
     this.f1.combo = 0; this.f2.combo = 0;
     this.ai.reset();
     this.projectiles.length = 0;
@@ -156,6 +204,8 @@
     this.phase = 'ko';
     this.koT = 0;
     this.wins[winner]++;
+    var loser = winner === 0 ? 1 : 0;
+    this.koFlags[loser][this.teamPos[loser]] = true; // 当前败方队员阵亡
     if (winner === 0 ? this.f2.hp > 0 : this.f1.hp > 0) {
       // 时间到判胜，非 KO
       AK.audio.play('bell');
@@ -163,17 +213,15 @@
       AK.audio.play('ko');
       this.shake = 14;
     }
-    var loser = winner === 0 ? this.f2 : this.f1;
+    if (this.f1.hp < this.f1.maxHp - 0.5 || this.f2.hp < this.f2.maxHp - 0.5) this.perfect[winner] = false;
     var wnr = winner === 0 ? this.f1 : this.f2;
-    if (loser.hp === loser.maxHp) this.perfect[winner] = this.perfect[winner] && true;
-    else this.perfect[winner] = false;
     wnr.setState('victory');
     wnr.victoryT = 0;
   };
 
   Game.prototype.endMatch = function () {
     this.matchOver = true;
-    var win = this.wins[0] >= AK.RULES.roundsToWin;
+    var win = this.wins[0] >= this.p2Team.length;
     var coins = win ? AK.ECON.winReward : AK.ECON.loseReward;
     if (win && this.perfect[0] && this.wins[1] === 0) coins += AK.ECON.perfectBonus;
     this.matchResult = {
@@ -241,10 +289,15 @@
       f2.update(this, this.emptyInput(), f1);
       this.stepEffects();
       if (this.koT > 130) {
-        if (this.wins[0] >= AK.RULES.roundsToWin || this.wins[1] >= AK.RULES.roundsToWin) {
+        var loser = this.roundWinner === 0 ? 1 : 0;
+        var allKo = true;
+        for (var li = 0; li < this.koFlags[loser].length; li++) { if (!this.koFlags[loser][li]) { allKo = false; break; } }
+        if (allKo) {
           this.endMatch();
         } else {
-          this.startRound(false);
+          this.teamPos[loser]++;
+          this[loser === 0 ? 'f1' : 'f2'] = this.spawnMember(loser);
+          this.beginRound(false);
         }
       }
       return;
@@ -679,10 +732,10 @@
     // 阶段横幅
     if (this.phase === 'intro') {
       var t = this.phaseT;
-      var txt = this.roundNo > 1 ? 'ROUND ' + this.roundNo : 'ROUND 1';
+      var txt = this.roundNo > 1 ? '第 ' + this.roundNo + ' 战' : '第 1 战';
       this.bigText(ctx, txt, 1 - Math.min(1, t / 22));
       if (t > 46) this.bigText(ctx, 'FIGHT!', Math.min(1, (t - 46) / 10));
-      // 操作提示（仅第一回合）
+      // 操作提示（仅第一战）
       if (this.roundNo === 1 && t < 90) {
         ctx.save();
         ctx.globalAlpha = 0.75;
@@ -695,15 +748,14 @@
     }
     if (this.phase === 'ko') {
       if (this.koT < 70) {
-        var who = this.roundWinner === 0 ? 'K.O.' : 'K.O.';
-        this.bigText(ctx, who, 1);
+        this.bigText(ctx, 'K.O.', 1);
       } else {
-        var wnr = this.roundWinner === 0 ? this.p1Char.name : this.p2Char.name;
+        var wnr = this.roundWinner === 0 ? this.f1.ch : this.f2.ch;
         ctx.save();
         ctx.textAlign = 'center';
         ctx.fillStyle = '#ffd447';
-        ctx.font = 'bold 18px sans-serif';
-        ctx.fillText(wnr + ' 获得本回合', W / 2, 96);
+        ctx.font = 'bold 17px sans-serif';
+        ctx.fillText(wnr.name + ' 击败对手', W / 2, 96);
         ctx.restore();
       }
     }
@@ -780,20 +832,14 @@
     ctx.textBaseline = 'alphabetic';
     ctx.textAlign = 'left';
     ctx.fillStyle = '#f5f3ea';
-    ctx.fillText(this.p1Char.name, pad, 34);
+    ctx.fillText(this.f1.ch.name, pad, 34);
     ctx.textAlign = 'right';
-    ctx.fillText(this.p2Char.name, W - pad, 34);
+    ctx.fillText(this.f2.ch.name, W - pad, 34);
     ctx.restore();
 
-    // 回合胜点
-    ctx.save();
-    for (var i = 0; i < AK.RULES.roundsToWin; i++) {
-      ctx.fillStyle = i < this.wins[0] ? '#ffd447' : 'rgba(255,255,255,0.2)';
-      ctx.fillRect(pad + i * 13, 38, 10, 6);
-      ctx.fillStyle = i < this.wins[1] ? '#ffd447' : 'rgba(255,255,255,0.2)';
-      ctx.fillRect(W - pad - 10 - i * 13, 38, 10, 6);
-    }
-    ctx.restore();
+    // 双方战队 3 人头像（当前 / 待命 / 阵亡）
+    this.drawTeamPanel(ctx, 0, pad, 38);
+    this.drawTeamPanel(ctx, 1, W - pad - 34, 38);
 
     // 计时器
     var sec = Math.ceil(this.timer / 60);
@@ -849,6 +895,45 @@
     if (mirror) ctx.fillRect(x + w - pw, py, pw, ph);
     else ctx.fillRect(x, py, pw, ph);
     ctx.restore();
+  };
+
+  /* ---------------- 战队面板（双方 3 人头像） ---------------- */
+  Game.prototype.drawTeamPanel = function (ctx, side, x, y) {
+    var team = side === 0 ? this.p1Team : this.p2Team;
+    var n = team.length;
+    var sz = 22, gap = 4;
+    for (var i = 0; i < n; i++) {
+      var px = side === 0 ? x + i * (sz + gap) : x - i * (sz + gap);
+      var ch = AK.characterById(team[i]);
+      var ko = this.koFlags[side][i];
+      var active = this.teamPos[side] === i && !ko;
+      ctx.save();
+      ctx.fillStyle = '#0b0d14';
+      ctx.fillRect(px - 1, y - 1, sz + 2, sz + 2);
+      ctx.fillStyle = ko ? 'rgba(40,40,50,0.6)' : ch.palette.top;
+      ctx.fillRect(px, y, sz, sz);
+      ctx.fillStyle = ko ? 'rgba(120,120,130,0.5)' : ch.palette.accent;
+      ctx.fillRect(px + sz * 0.32, y + sz * 0.12, sz * 0.36, sz * 0.36); // 头
+      ctx.fillRect(px + sz * 0.22, y + sz * 0.5, sz * 0.56, sz * 0.42);  // 身
+      if (active) {
+        ctx.strokeStyle = '#ffd447';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(px - 1, y - 1, sz + 2, sz + 2);
+      } else if (!ko) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(px, y, sz, sz);
+      }
+      if (ko) {
+        ctx.strokeStyle = '#ff5a4a';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(px + 3, y + 3); ctx.lineTo(px + sz - 3, y + sz - 3);
+        ctx.moveTo(px + sz - 3, y + 3); ctx.lineTo(px + 3, y + sz - 3);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
   };
 
   /* ---------------- 虚拟按键 ---------------- */
@@ -961,7 +1046,7 @@
     ctx.restore();
   };
 
-  /* ---------------- 选人页 ---------------- */
+  /* ---------------- 选人页（组建 3 人战队） ---------------- */
   Game.prototype.drawSelect = function (ctx) {
     var g = ctx.createLinearGradient(0, 0, 0, H);
     g.addColorStop(0, '#10131f');
@@ -972,69 +1057,108 @@
     ctx.save();
     ctx.textAlign = 'center';
     ctx.fillStyle = '#f5f3ea';
-    ctx.font = 'bold 15px sans-serif';
-    ctx.fillText('选择你的战士', W / 2, 42);
+    ctx.font = 'bold 14px sans-serif';
+    ctx.fillText('组建战队 · 选 ' + this.sel.team.length + '/3 人', W / 2, 22);
     ctx.restore();
 
+    // 6 张角色卡（3 列 × 2 行）
+    var cw = 140, chh = 60, gx = 20, gy = 30, gapx = 10, gapy = 6;
     for (var i = 0; i < AK.CHARACTERS.length; i++) {
       var ch = AK.CHARACTERS[i];
-      var bx = 22 + i * 112, by = 54, bw = 96, bh = 92;
+      var col = i % 3, row = Math.floor(i / 3);
+      var bx = gx + col * (cw + gapx), by = gy + row * (chh + gapy);
       var unlocked = this.isUnlocked(ch.id);
-      var sel = this.sel.p1 === i;
-      S.drawPortrait(ctx, ch, bx, by, bw, bh, { selected: sel });
+      var idx = this.sel.team.indexOf(ch.id);
+      var inTeam = idx >= 0;
+      S.drawPortrait(ctx, ch, bx, by, cw, chh, { selected: inTeam });
       if (!unlocked) {
         ctx.save();
-        ctx.fillStyle = 'rgba(6,8,14,0.72)';
-        ctx.fillRect(bx, by, bw, bh);
+        ctx.fillStyle = 'rgba(6,8,14,0.7)';
+        ctx.fillRect(bx, by, cw, chh);
         ctx.fillStyle = '#ffd447';
         ctx.font = 'bold 11px sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText('未解锁', bx + bw / 2, by + bh / 2 + 4);
+        ctx.fillText('未解锁 · 点击', bx + cw / 2, by + chh / 2 + 4);
         ctx.restore();
       }
+      // 名字
       ctx.save();
-      ctx.textAlign = 'center';
-      ctx.fillStyle = sel ? '#ffd447' : '#f5f3ea';
+      ctx.fillStyle = 'rgba(8,10,16,0.7)';
+      ctx.fillRect(bx, by + chh - 14, cw, 14);
+      ctx.textAlign = 'left';
+      ctx.fillStyle = inTeam ? '#ffd447' : '#f5f3ea';
       ctx.font = 'bold 10px sans-serif';
-      ctx.fillText(ch.name, bx + bw / 2, by + bh + 13);
-      ctx.fillStyle = 'rgba(245,243,234,0.5)';
-      ctx.font = '9px sans-serif';
-      ctx.fillText(ch.style, bx + bw / 2, by + bh + 24);
+      ctx.fillText(ch.name, bx + 4, by + chh - 4);
       ctx.restore();
-      this.uiButton(ctx, 'pick:' + i, bx, by, bw, bh, '', { invisible: true });
+      // 选中的出场顺位徽标
+      if (inTeam) {
+        ctx.save();
+        ctx.fillStyle = '#ffd447';
+        ctx.fillRect(bx, by, 16, 14);
+        ctx.fillStyle = '#12151f';
+        ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('' + (idx + 1), bx + 8, by + 11);
+        ctx.restore();
+      }
+      this.uiButton(ctx, 'pick:' + i, bx, by, cw, chh, '', { invisible: true });
     }
 
-    // 角色说明
-    var cur = AK.CHARACTERS[this.sel.p1];
-    ctx.save();
-    ctx.textAlign = 'center';
-    ctx.fillStyle = 'rgba(245,243,234,0.72)';
-    ctx.font = '10px sans-serif';
-    ctx.fillText(cur.desc, W / 2, 184);
-    ctx.fillStyle = cur.palette.accent;
-    ctx.font = 'bold 11px sans-serif';
-    ctx.fillText('必杀：' + cur.special.name, W / 2, 198);
-    ctx.restore();
+    // 底部：战队槽位
+    var sy = 196;
+    for (var s = 0; s < 3; s++) {
+      var sx = 20 + s * 64;
+      ctx.save();
+      ctx.fillStyle = '#0b0d14';
+      ctx.fillRect(sx, sy, 58, 30);
+      ctx.strokeStyle = s < this.sel.team.length ? '#ffd447' : 'rgba(255,255,255,0.25)';
+      ctx.lineWidth = s < this.sel.team.length ? 2 : 1;
+      ctx.strokeRect(sx, sy, 58, 30);
+      if (s < this.sel.team.length) {
+        var tc = AK.characterById(this.sel.team[s]);
+        ctx.fillStyle = tc.palette.accent;
+        ctx.fillRect(sx + 4, sy + 4, 22, 22);
+        ctx.fillStyle = '#f5f3ea';
+        ctx.font = '9px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(tc.name.split(' ')[0], sx + 30, sy + 13);
+        ctx.fillText(tc.archetype, sx + 30, sy + 24);
+      } else {
+        ctx.fillStyle = 'rgba(245,243,234,0.35)';
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('空', sx + 29, sy + 18);
+      }
+      ctx.restore();
+    }
+    this.uiButton(ctx, 'random', 214, sy, 56, 30, '随机', {});
+    if (AK.ECON.startCoins !== undefined) { /* 占位，避免无用分支告警 */ }
 
-    // 未解锁时的解锁按钮
-    if (!this.isUnlocked(cur.id)) {
-      this.uiButton(ctx, 'unlockAd', W / 2 - 106, 206, 100, 22, '看广告解锁', { accent: true });
-      this.uiButton(ctx, 'unlockCoin', W / 2 + 6, 206, 100, 22, '◆' + AK.ECON.characterPrice + ' 解锁', {});
+    // 难度 / 解锁（互斥显示）
+    if (this.sel.lockTarget >= 0) {
+      var lk = AK.CHARACTERS[this.sel.lockTarget];
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ffd447';
+      ctx.font = '10px sans-serif';
+      ctx.fillText('解锁 ' + lk.name, W / 2, 214);
+      ctx.restore();
+      this.uiButton(ctx, 'unlockAd', 214, 222, 100, 22, '看广告解锁', { accent: true });
+      this.uiButton(ctx, 'unlockCoin', 320, 222, 100, 22, '◆' + AK.ECON.characterPrice + ' 解锁', {});
     } else {
-      // 难度选择
       ctx.save();
       ctx.textAlign = 'center';
       ctx.fillStyle = 'rgba(245,243,234,0.6)';
-      ctx.font = '10px sans-serif';
-      ctx.fillText('难度', W / 2, 212);
+      ctx.font = '9px sans-serif';
+      ctx.fillText('难度', 48, 214);
       ctx.restore();
       for (var d = 0; d < AK.DIFFICULTY.length; d++) {
-        var dx = W / 2 - 116 + d * 60;
-        this.uiButton(ctx, 'diff:' + d, dx, 220, 54, 22, AK.DIFFICULTY[d].name, { selected: this.sel.difficulty === d });
+        this.uiButton(ctx, 'diff:' + d, 20 + d * 56, 220, 50, 20, AK.DIFFICULTY[d].name, { selected: this.sel.difficulty === d });
       }
     }
 
-    this.uiButton(ctx, 'fight', W - 92, H - 34, 80, 26, '开 打', { primary: true, disabled: !this.isUnlocked(cur.id) });
+    var ready = this.sel.team.length === 3 && this.sel.team.every(function (id) { return this.isUnlocked(id); }, this);
+    this.uiButton(ctx, 'fight', W - 92, H - 34, 80, 26, '开 打', { primary: true, disabled: !ready });
     this.uiButton(ctx, 'back', 12, H - 34, 56, 26, '返回', {});
   };
 
@@ -1201,7 +1325,25 @@
     if (id === 'chars') { this.setScene('select'); return; }
 
     if (id.indexOf('pick:') === 0) {
-      this.sel.p1 = parseInt(id.split(':')[1], 10);
+      var pi = parseInt(id.split(':')[1], 10);
+      var pch = AK.CHARACTERS[pi];
+      if (!this.isUnlocked(pch.id)) { this.sel.lockTarget = pi; return; }
+      this.sel.lockTarget = -1;
+      var ti = this.sel.team.indexOf(pch.id);
+      if (ti >= 0) this.sel.team.splice(ti, 1);
+      else if (this.sel.team.length < 3) this.sel.team.push(pch.id);
+      else this.showToast('战队已满 3 人，先取消一人');
+      return;
+    }
+    if (id === 'random') {
+      var pool = AK.CHARACTERS.filter(function (c) { return this.isUnlocked(c.id); }, this);
+      // 洗牌取 3
+      for (var r = pool.length - 1; r > 0; r--) {
+        var j = Math.floor(Math.random() * (r + 1));
+        var tmp = pool[r]; pool[r] = pool[j]; pool[j] = tmp;
+      }
+      this.sel.team = pool.slice(0, 3).map(function (c) { return c.id; });
+      this.sel.lockTarget = -1;
       return;
     }
     if (id.indexOf('diff:') === 0) {
@@ -1209,17 +1351,20 @@
       return;
     }
     if (id === 'fight') {
-      var ch = AK.CHARACTERS[this.sel.p1];
-      if (!this.isUnlocked(ch.id)) { this.showToast('该角色尚未解锁'); return; }
-      this.startMatch(ch.id, AK.DIFFICULTY[this.sel.difficulty].id);
+      if (this.sel.team.length !== 3) { this.showToast('请先选满 3 名队员'); return; }
+      for (var fi = 0; fi < this.sel.team.length; fi++) {
+        if (!this.isUnlocked(this.sel.team[fi])) { this.showToast('队伍中有未解锁角色'); return; }
+      }
+      this.startMatch(this.sel.team.slice(), AK.DIFFICULTY[this.sel.difficulty].id, this.randomTeam());
       return;
     }
     if (id === 'again') {
-      this.startMatch(this.p1Char.id, AK.DIFFICULTY[this.sel.difficulty].id);
+      this.startMatch(this.p1Team.slice(), this.matchDiff, this.p2Team.slice());
       return;
     }
     if (id === 'unlockCoin') {
-      var cur = AK.CHARACTERS[this.sel.p1];
+      var cur = AK.CHARACTERS[this.sel.lockTarget];
+      if (!cur) return;
       if (this.save.coins >= AK.ECON.characterPrice) {
         this.addCoins(-AK.ECON.characterPrice);
         this.save.unlocked.push(cur.id);
@@ -1228,10 +1373,12 @@
       } else {
         this.showToast('金币不足，可看广告解锁');
       }
+      this.sel.lockTarget = -1;
       return;
     }
     if (id === 'unlockAd') {
-      var target = AK.CHARACTERS[this.sel.p1];
+      var target = AK.CHARACTERS[this.sel.lockTarget];
+      if (!target) return;
       AK.ads.showRewarded(function (res) {
         if (res.ok) {
           if (self.save.unlocked.indexOf(target.id) < 0) self.save.unlocked.push(target.id);
@@ -1240,6 +1387,7 @@
         } else {
           self.showToast('需完整观看广告才能解锁');
         }
+        self.sel.lockTarget = -1;
       });
       return;
     }
@@ -1261,10 +1409,15 @@
       AK.ads.showRewarded(function (res) {
         if (res.ok) {
           self.reviveUsed = true;
-          // 回退对手一个胜点，继续决胜
-          if (self.wins[1] > 0) self.wins[1]--;
+          // 复活玩家战队最后一名倒下的队员
+          if (self.teamPos[0] > 0) {
+            self.teamPos[0]--;
+            self.koFlags[0][self.teamPos[0]] = false;
+            self.f1 = self.spawnMember(0);
+          }
+          self.wins[1] = Math.max(0, self.wins[1] - 1);
           self.matchOver = false;
-          self.startRound(false);
+          self.beginRound(false);
           self.setScene('battle');
           self.showToast('复活成功！继续战斗');
         } else {

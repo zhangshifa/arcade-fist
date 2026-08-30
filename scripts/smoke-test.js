@@ -58,7 +58,8 @@ function section(t) { console.log('\n' + t); }
 /* ================= 1. 模块加载 ================= */
 section('[1] 模块加载');
 ok(!!AK && !!AK.Game && !!AK.Fighter && !!AK.AI && !!AK.sprites && !!AK.ads, '核心模块全部就绪');
-ok(AK.CHARACTERS.length === 4, '4 名角色已定义', AK.CHARACTERS.length);
+ok(AK.CHARACTERS.length === 6, '6 名角色已定义', AK.CHARACTERS.length);
+ok(AK.TEAMS.length === 2, '2 支战队已定义', AK.TEAMS.length);
 ok(AK.DIFFICULTY.length === 4, '4 档难度已定义');
 ok(AK.ADS.debug === true, '广告默认处于调试模拟模式');
 
@@ -81,17 +82,21 @@ ok(game.scene === 'select', '进入选人页', game.scene);
 game.render(ctx);
 ok(game.hotspots.length > 0, '选人页生成了可点击热区', game.hotspots.length);
 
+game.sel.team = [];
 game.onUiClick('pick:0');
-ok(game.sel.p1 === 0, '选中第 1 位角色');
+game.onUiClick('pick:1');
+game.onUiClick('pick:4'); // 0/1/4 均为默认解锁角色（ryan/vela/shira）
+ok(game.sel.team.length === 3, '选满 3 人组建战队', game.sel.team.join(','));
 game.onUiClick('diff:2');
 ok(game.sel.difficulty === 2, '难度切换为困难');
 game.onUiClick('fight');
 ok(game.scene === 'battle', '进入对战', game.scene);
 ok(!!game.f1 && !!game.f2, '双方角色已创建');
-ok(game.f1.ch.id !== game.f2.ch.id, '对手不会与自己相同');
+ok(game.f1 !== game.f2, '双方为不同角色实例（允许镜像阵容）');
+ok(game.p1Team.length === 3 && game.p2Team.length === 3, '双方均为 3v3 战队');
 
 /* ================= 4. 完整对局 ================= */
-section('[4] 模拟完整对局（最多 3 回合 x 60 秒）');
+section('[4] 模拟完整对局（3v3 淘汰赛，最多 5 场 x 60 秒）');
 let frames = 0;
 let errored = null;
 let sawDamage = false;
@@ -99,7 +104,7 @@ let sawSpecial = false;
 const hp0 = game.f2.hp;
 
 try {
-  while (frames < 60 * 200 && game.scene === 'battle') {
+  while (frames < 60 * 500 && game.scene === 'battle') {
     frames++;
     // 玩家输入：随机出招 + 持续靠近
     const r = Math.random();
@@ -116,7 +121,7 @@ try {
 } catch (e) { errored = e; }
 
 ok(!errored, '对局全程无异常', errored && errored.stack ? errored.stack.split('\n').slice(0, 3).join(' | ') : '');
-ok(frames < 60 * 200, '对局能正常结束（未死循环）', 'frames=' + frames);
+ok(frames < 60 * 500, '对局能正常结束（未死循环）', 'frames=' + frames);
 ok(sawDamage, '玩家能对对手造成伤害');
 ok(game.wins[0] + game.wins[1] >= 1, '产生了回合胜负', game.wins.join('-'));
 ok(game.scene === 'result', '对局结束后进入结算页', game.scene);
@@ -204,25 +209,30 @@ ok(g3.save.coins === 0, '金币正确扣除', g3.save.coins);
 const g4 = new AK.Game({ platform: 'web' });
 g4.view = { scale: 1, ox: 0, oy: 0 };
 g4.setScene('select');
-g4.onUiClick('pick:' + lockedChar);
+// 注意：g3 已通过金币解锁 goro 并写入共享存档，这里选一个存档中仍未解锁的角色
+const lockedBySave = AK.CHARACTERS.findIndex((c) => !g4.isUnlocked(c.id));
+g4.onUiClick('pick:' + lockedBySave);
 g4.onUiClick('unlockAd');
 ok(AK.ads.isMockShowing(), '看广告解锁触发模拟广告');
 for (let i = 0; i < 5 * 60 + 5; i++) { AK.ads.update(); }
-ok(g4.isUnlocked(AK.CHARACTERS[lockedChar].id), '广告解锁成功');
+ok(g4.isUnlocked(AK.CHARACTERS[lockedBySave].id), '广告解锁成功');
 
 /* ================= 9. 复活与双倍奖励 ================= */
 section('[9] 复活与双倍奖励');
 const g5 = new AK.Game({ platform: 'web' });
 g5.view = { scale: 1, ox: 0, oy: 0 };
 g5.startMatch('ryan', 'normal');
-g5.wins = [0, 2];
-g5.matchResult = { win: false, coins: 15, doubled: false, score: '0 - 2' };
+g5.wins = [0, 3];
+g5.teamPos = [3, 0];
+g5.koFlags = [[true, true, true], [false, false, false]];
+g5.matchResult = { win: false, coins: 15, doubled: false, score: '0 - 3' };
 g5.setScene('result');
 g5.render(ctx);
 g5.onUiClick('revive');
 ok(AK.ads.isMockShowing(), '复活按钮触发激励视频');
 for (let i = 0; i < 5 * 60 + 5; i++) AK.ads.update();
-ok(g5.wins[1] === 1, '复活后对手胜点回退 1', String(g5.wins[1]));
+ok(g5.wins[1] === 2, '复活后对手胜点回退 1', String(g5.wins[1]));
+ok(g5.teamPos[0] === 2 && !g5.koFlags[0][2], '复活后该队员归队（阵亡标记清除）');
 ok(g5.scene === 'battle' && g5.reviveUsed, '复活后回到对战且已标记使用');
 
 const g6 = new AK.Game({ platform: 'web' });
@@ -259,6 +269,29 @@ g9.onKey('KeyJ', true);
 ok(g9.press.a === true, '键盘 J 映射为轻拳');
 g9.onKey('KeyJ', false);
 ok(!g9.press.a, '键盘抬起清除攻击输入');
+
+/* ================= 12. 3v3 组队淘汰机制 ================= */
+section('[12] 3v3 组队淘汰');
+const gt = new AK.Game({ platform: 'web' });
+gt.view = { scale: 1, ox: 0, oy: 0 };
+gt.startMatch('ryan', 'easy');
+gt.phase = 'fight';
+let err = null;
+try {
+  for (let n = 0; n < 3; n++) {
+    gt.f2.hp = 0; // 直接击杀当前对手
+    for (let i = 0; i < 320; i++) {
+      gt.update(1000 / 60);
+      gt.render(ctx);
+      if (gt.scene !== 'battle' || gt.teamPos[1] !== n) break;
+    }
+    if (gt.scene === 'result') break;
+  }
+} catch (e) { err = e; }
+ok(!err, '3v3 淘汰过程无异常', err ? err.message : '');
+ok(gt.wins[0] === 3, '连续击败对方全部 3 名队员', String(gt.wins[0]));
+ok(gt.scene === 'result', '全灭对方后进入结算页', gt.scene);
+ok(gt.koFlags[1].every((x) => x === true), '对方 3 名队员全部阵亡标记');
 
 /* ================= 汇总 ================= */
 console.log('\n' + '='.repeat(46));
